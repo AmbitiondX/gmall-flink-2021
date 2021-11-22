@@ -106,8 +106,10 @@ public class BaseDBApp {
         kafkaFactDS.addSink(MyKafkaUtil.getFlinkKafkaProducerBySchema(new KafkaSerializationSchema<JSONObject>() {
             @Override
             public ProducerRecord<byte[], byte[]> serialize(JSONObject element, @Nullable Long timestamp) {
-                return new ProducerRecord<byte[], byte[]>(element.getString("sinkTable"),
-                        element.getString("data").getBytes());
+                return new ProducerRecord<byte[], byte[]>(
+                        element.getString("sinkTable"),
+                        element.getString("data").getBytes()
+                );
             }
         }));
 
