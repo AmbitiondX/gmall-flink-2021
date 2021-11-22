@@ -3,6 +3,7 @@
     <property name="LOG_HOME" value="/opt/module/gmall-flink/rt_applog/logs" />
     <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
+            <!--消息+回车-->
             <pattern>%msg%n</pattern>
         </encoder>
     </appender>

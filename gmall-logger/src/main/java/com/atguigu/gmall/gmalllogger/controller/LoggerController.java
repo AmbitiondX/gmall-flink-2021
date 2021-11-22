@@ -28,12 +28,14 @@ public class LoggerController {
     }
 
 
+    // kafkaTemplate可能会飘红，不影响使用
     @Autowired
     private KafkaTemplate<String, String> kafkaTemplate;
 
+    // 建立请求映射RequesMapping
     @RequestMapping("applog")
     public String getLogger(@RequestParam("param") String jsonStr) {
-        //落盘
+        //落盘 log是lombok@Slf4j中的一个对象
         log.info(jsonStr);
 
         //写入Kafka

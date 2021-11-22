@@ -1,4 +1,4 @@
-package com.atguigu.app;
+package com.atguigu.app.ods;
 
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.ververica.cdc.connectors.mysql.MySQLSource;
@@ -8,6 +8,7 @@ import com.alibaba.ververica.cdc.debezium.DebeziumSourceFunction;
 
 import com.atguigu.utils.MyKafkaUtil;
 import io.debezium.data.Envelope;
+import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -39,8 +40,6 @@ public class Flink_CDCWithCustomerSchema {
                         // 获取主题信息，包含这数据库和表明
                         String topic = sourceRecord.topic();
 
-                        if (topic != null)
-                            System.out.println("============================================\n" + topic.toString());
 
                         String[] arr = topic.split("\\.");
                         String db = arr[1];
@@ -54,23 +53,36 @@ public class Flink_CDCWithCustomerSchema {
 
                         // 获取变化后的数据
                         Struct after = value.getStruct("after");
-
-
                         // 创建json对象用于存储数据信息
-                        JSONObject data = new JSONObject();
+                        JSONObject jsonObject = new JSONObject();
                         if (after != null) {
                             Schema schema = after.schema();
                             for (Field field : schema.fields()) {
-                                data.put(field.name(), after.get(field.name()));
+                                jsonObject.put(field.name(), after.get(field.name()));
+                            }
+                        }
+
+                        //获取Value信息,提取删除或者修改的数据本身
+                        Struct before = value.getStruct("before");
+                        JSONObject beforeJson = new JSONObject();
+                        if (before != null) {
+                            for (Field field : before.schema().fields()) {
+                                Object o = before.get(field);
+                                beforeJson.put(field.name(), o);
                             }
                         }
 
                         // 创建json对象用于封装最终返回值数据信息
                         JSONObject result = new JSONObject();
-                        result.put("operation", operation.toString().toLowerCase(Locale.ROOT));
-                        result.put("data", data);
-                        result.put("db", db);
+                        result.put("database", db);
                         result.put("table", tableName);
+                        result.put("data", jsonObject );
+                        result.put("before-data", beforeJson);
+                        String type = operation.toString().toLowerCase();
+                        if ("create".equals(type)) {
+                            type = "insert";
+                        }
+                        result.put("type", type);
 
                         // 发送数据至下游
                         collector.collect(result.toJSONString());
@@ -78,7 +90,7 @@ public class Flink_CDCWithCustomerSchema {
 
                     @Override
                     public TypeInformation<String> getProducedType() {
-                        return TypeInformation.of(String.class);
+                        return  BasicTypeInfo.STRING_TYPE_INFO;
                     }
                 })
                 .build();
