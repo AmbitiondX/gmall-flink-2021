@@ -11,6 +11,7 @@
     <modules>
         <module>gmall-realtime</module>
         <module>flink-CDC</module>
+        <module>gmall-realtime-exer</module>
     </modules>
 
     <properties>
