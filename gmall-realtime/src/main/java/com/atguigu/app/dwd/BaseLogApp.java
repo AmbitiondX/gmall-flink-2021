@@ -23,12 +23,14 @@ import org.apache.flink.util.OutputTag;
 import java.text.SimpleDateFormat;
 
 public class BaseLogApp {
+    //流向    前端埋点 -> nginx -> 日志服务器 -> kafka(zk) -> flinkApp -> kafka
+    //进程    mock    -> nginx -> logger.sh -> kafka(zk) -> flinkApp -> kafka
     public static void main(String[] args) throws Exception {
         // 1.获取流的执行环境，设置并行度，开启CK，设置状态后端(hdfs)
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // 为kafka主题的分区数
         env.setParallelism(1);
-        // 设置状态后端
+        /*// 设置状态后端
         env.setStateBackend(new FsStateBackend("hdfs://hadoop102:8020/gmall/dwd_log/ck"));
         // 开启ck
         env.enableCheckpointing(1000L, CheckpointingMode.EXACTLY_ONCE);
@@ -36,7 +38,7 @@ public class BaseLogApp {
         env.getCheckpointConfig().setCheckpointTimeout(6000L);
 
         // 修改用户名，如果放在集群上跑，不需要设置
-        System.setProperty("HADOOP_USER_NAME","atguigu");
+        System.setProperty("HADOOP_USER_NAME","atguigu");*/
 
         // 2. 读取kafka ods_base_log 主题数据
         String topic = "ods_base_log";
@@ -45,16 +47,24 @@ public class BaseLogApp {
         DataStreamSource<String> kafkaDS = env.addSource(kafkaSource);
 
         // 3. 将每行数据转换为JsonObejct
-        SingleOutputStreamOperator<JSONObject> jsonObjDS = kafkaDS
-                .map(new MapFunction<String, JSONObject>() {
-                    @Override
-                    public JSONObject map(String value) throws Exception {
-                        return JSONObject.parseObject(value);
-                    }
-                });
+        OutputTag<String> dirtyOutputTag = new OutputTag<String>("dirty") {
+        };
+        SingleOutputStreamOperator<JSONObject> jsonObjDS = kafkaDS.process(new ProcessFunction<String, JSONObject>() {
+            @Override
+            public void processElement(String value, ProcessFunction<String, JSONObject>.Context ctx, Collector<JSONObject> out) throws Exception {
+                try {
+                    JSONObject jsonObject = JSONObject.parseObject(value);
+                    out.collect(jsonObject);
+                } catch (Exception e) {
+                    ctx.output(dirtyOutputTag, value);
+                }
+            }
+        });
 
         // 打印测试
-        jsonObjDS.print();
+//        jsonObjDS.print();
+        DataStream<String> dirtyDS = jsonObjDS.getSideOutput(dirtyOutputTag);
+        dirtyDS.print("dirty>>>>>>");
 
         // 4. 按照mid分组
         KeyedStream<JSONObject, String> keyedStream = jsonObjDS.keyBy(data -> data.getJSONObject("common").getString("mid"));
@@ -97,6 +107,7 @@ public class BaseLogApp {
         // 打印测试
 //        jsonWithNewFlagDS.print();
 
+
         // 6. 分流，使用ProcessFunction将ods数据拆分成自动、曝光以及页面数据
         SingleOutputStreamOperator<String> pageDS = jsonWithNewFlagDS.process(new ProcessFunction<JSONObject, String>() {
             @Override
@@ -136,9 +147,9 @@ public class BaseLogApp {
         DataStream<String> displayDS = pageDS.getSideOutput(new OutputTag<String>("display"){});
 
         // 打印测试
-//        pageDS.print("page>>>>>>");
-//        startDS.print("start>>>>>>");
-//        displayDS.print("display>>>>>>");
+        pageDS.print("page>>>>>>");
+        startDS.print("start>>>>>>");
+        displayDS.print("display>>>>>>");
 
         pageDS.addSink(MyKafkaUtil.getKafkaSink("dwd_page_log"));
         startDS.addSink(MyKafkaUtil.getKafkaSink("dwd_start_log"));

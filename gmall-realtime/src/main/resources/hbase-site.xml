@@ -3,7 +3,7 @@
 <configuration>
     <property>
         <name>hbase.rootdir</name>
-        <value>hdfs://hadoop102:8020/HBase</value>
+        <value>hdfs://hadoop102:8020/hbase</value>
     </property>
 
     <property>
@@ -15,7 +15,13 @@
         <name>hbase.zookeeper.quorum</name>
         <value>hadoop102,hadoop103,hadoop104</value>
     </property>
+    <!-- phoenix regionserver 配置参数-->
+    <property>
+        <name>hbase.regionserver.wal.codec</name>
+        <value>org.apache.hadoop.hbase.regionserver.wal.IndexedWALEditCodec</value>
+    </property>
 
+    <!-- 开启hbase的namespace和phoenix的schema的映射 -->
     <property>
         <name>phoenix.schema.isNamespaceMappingEnabled</name>
         <value>true</value>
@@ -25,5 +31,6 @@
         <name>phoenix.schema.mapSystemTablesToNamespace</name>
         <value>true</value>
     </property>
+
 
 </configuration>

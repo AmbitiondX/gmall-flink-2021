@@ -1,26 +1,14 @@
 package com.atguigu.app.ods;
 
-import com.alibaba.fastjson.JSONObject;
+
 import com.alibaba.ververica.cdc.connectors.mysql.MySQLSource;
 import com.alibaba.ververica.cdc.connectors.mysql.table.StartupOptions;
-import com.alibaba.ververica.cdc.debezium.DebeziumDeserializationSchema;
 import com.alibaba.ververica.cdc.debezium.DebeziumSourceFunction;
-
 import com.atguigu.app.func.MyDeserializerFunc;
 import com.atguigu.utils.MyKafkaUtil;
-import io.debezium.data.Envelope;
-import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.util.Collector;
-import org.apache.kafka.connect.data.Field;
-import org.apache.kafka.connect.data.Schema;
-import org.apache.kafka.connect.source.SourceRecord;
 
-import org.apache.kafka.connect.data.Struct;
-
-import java.util.Locale;
 
 public class Flink_CDCWithCustomerSchema {
     public static void main(String[] args) throws Exception {
@@ -42,6 +30,7 @@ public class Flink_CDCWithCustomerSchema {
         DataStreamSource<String> mysqlDS = env.addSource(mysqlSource);
 
         // 4.打印数据
+        mysqlDS.print("mysqlDS>>>>>");
         mysqlDS.addSink(MyKafkaUtil.getKafkaSink("ods_base_db"));
 
         // 5.执行任务

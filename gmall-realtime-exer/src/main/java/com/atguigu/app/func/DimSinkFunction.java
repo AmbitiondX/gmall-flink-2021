@@ -11,6 +11,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Set;
 
@@ -35,14 +36,19 @@ public class DimSinkFunction extends RichSinkFunction<JSONObject> {
             //拼接插入数据的SQL语句  upsert into db.tn(id,name,sex) values('1001','zhangsan','male')
             String upsertSQL = genUpsertSQL(value.getString("sinkTable"), value.getJSONObject("data"));
 
-            // 如果维度数据更新，则先删除redis中的数据 ***************
+            //预编译SQL
+            preparedStatement = connection.prepareStatement(upsertSQL);
 
-            DimUtil.delDimInfo(value.getString("sinkTable").toLowerCase(), value.getJSONObject("data").getString("id"));
+            // 如果维度数据更新，则先删除redis中的数据 ***************
+            if ("update".equals(value.getString("type"))){
+                DimUtil.delDimInfo(value.getString("sinkTable").toLowerCase(), value.getJSONObject("data").getString("id"));
+            }
 
             // 执行写入数据操作
             preparedStatement.execute();
 
             connection.commit();
+
         } catch (SQLException e) {
             e.printStackTrace();
             System.out.println("插入数据失败！");
@@ -61,6 +67,22 @@ public class DimSinkFunction extends RichSinkFunction<JSONObject> {
         return "upsert into " + GmallConfig.HBASE_SCHEMA + "." + sinkTable + "(" +
                 StringUtils.join(columns,",") + ") values ('" +
                 StringUtils.join(values,"','") + "')";
+    }
+
+    // 测试StringUtils.join
+    public static void main(String[] args) {
+        ArrayList<String> list = new ArrayList<>();
+        list.add("id");
+        list.add("name");
+        list.add("score");
+        System.out.println(list);
+        /*
+            [id, name, score]
+            upsert into GMALL2021_REALTIME.sinkTable(id,name,score) values ('id','name','score')
+         */
+        System.out.println("upsert into " + GmallConfig.HBASE_SCHEMA + "." + "sinkTable" + "(" +
+                StringUtils.join(list,",") + ") values ('" +
+                StringUtils.join(list,"','") + "')");
     }
 
 }
