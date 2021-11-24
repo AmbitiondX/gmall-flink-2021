@@ -129,6 +129,7 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject, S
 
         TableProcess tableProcess = broadcastState.get(key);
 
+        // ods层的表比dwd层的表要多，所以dwd层的数据无法完全涵盖ods层的表，因此需要做null值判断
         if (tableProcess != null) {
             //2.根据广播状态数据  过滤字段
             filterColumns(value.getJSONObject("data"),tableProcess.getSinkColumns());
@@ -140,6 +141,7 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject, S
                 out.collect(value);
             }
         } else {
+            // key不存在 标准方式：打印到logger 不建议在控制台
             System.out.println(key + "不存在！");
         }
 
