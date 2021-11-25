@@ -26,7 +26,7 @@ public class DimUtil {
         String querySQL = "select * from " + GmallConfig.HBASE_SCHEMA + "." + tableName + " where id = '" + value + "'";
 
         // 查询Pho
-        List<JSONObject> queryList = PhoenixUtil.queryList(querySQL, JSONObject.class, false);
+        List<JSONObject> queryList = PhoenixUtil.queryList(querySQL, JSONObject.class);
         JSONObject jsonObject = queryList.get(0);
 
         // 将数据写入Redis

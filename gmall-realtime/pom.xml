@@ -135,8 +135,7 @@
             </exclusions>
         </dependency>
 
-        <!--commons-beanutils是Apache开源组织提供的用于操作JAVA BEAN的工具包。
-使用commons-beanutils，我们可以很方便的对bean对象的属性进行操作-->
+        <!--commons-beanutils是Apache开源组织提供的用于操作JAVA BEAN的工具包。使用commons-beanutils，我们可以很方便的对bean对象的属性进行操作-->
         <dependency>
             <groupId>commons-beanutils</groupId>
             <artifactId>commons-beanutils</artifactId>
@@ -155,6 +154,24 @@
             <artifactId>jedis</artifactId>
             <version>3.3.0</version>
         </dependency>
+
+        <!-- 加入ClickHouse依赖包-->
+        <dependency>
+            <groupId>ru.yandex.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <version>0.2.4</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-databind</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>jackson-core</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
 
     </dependencies>
 

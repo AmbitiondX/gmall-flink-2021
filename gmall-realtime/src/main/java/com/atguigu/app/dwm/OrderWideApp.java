@@ -1,235 +1,86 @@
 package com.atguigu.app.dwm;
 
+
 import com.alibaba.fastjson.JSONObject;
-import com.atguigu.app.func.DimAsyncFunction;
 import com.atguigu.bean.OrderDetail;
 import com.atguigu.bean.OrderInfo;
 import com.atguigu.bean.OrderWide;
 import com.atguigu.utils.MyKafkaUtil;
-import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.streaming.api.datastream.AsyncDataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.co.ProcessJoinFunction;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Collector;
 
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 
 public class OrderWideApp {
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         //TODO 1.获取执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
+        //1.1 设置状态后端
+//        env.setStateBackend(new FsStateBackend("hdfs://hadoop102:8020/gmall/dwd_log/ck"));
+//        //1.2 开启CK
+//        env.enableCheckpointing(10000L, CheckpointingMode.EXACTLY_ONCE);
+//        env.getCheckpointConfig().setCheckpointTimeout(60000L);
 
-        //1.1 开启CK
-        //        env.enableCheckpointing(5000L);
-        //        env.getCheckpointConfig().setCheckpointTimeout(10000L);
-        //        env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE);
-        //        //正常Cancel任务时,保留最后一次CK
-        //        env.getCheckpointConfig().enableExternalizedCheckpoints(CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
-        //        //重启策略
-        //        env.setRestartStrategy(RestartStrategies.fixedDelayRestart(3, 5000L));
-        //        //状态后端
-        //        env.setStateBackend(new FsStateBackend("hdfs://hadoop102:8020/gmall-flink-201109/ck"));
-        //        //设置访问HDFS的用户名
-        //        System.setProperty("HADOOP_USER_NAME", "atguigu");
-
-        //TODO 2.读取Kafka dwd_order_info、dwd_order_detail 主题的数据
+        //TODO 2.读取Kafka订单和订单明细主题数据 dwd_order_info  dwd_order_detail
         String orderInfoSourceTopic = "dwd_order_info";
         String orderDetailSourceTopic = "dwd_order_detail";
         String orderWideSinkTopic = "dwm_order_wide";
-        String groupId = "dwm_wide_group_0625";
-        DataStreamSource<String> orderInfoStrDS = env.addSource(MyKafkaUtil.getKafkaSource(orderInfoSourceTopic, groupId));
-        DataStreamSource<String> orderDetailStrDS = env.addSource(MyKafkaUtil.getKafkaSource(orderDetailSourceTopic, groupId));
+        String groupId = "order_wide_group";
 
-        //TODO 3.将数据转换为JavaBean并提取时间戳生成WaterMark
-        SingleOutputStreamOperator<OrderInfo> orderInfoWithWMDS = orderInfoStrDS.map(line -> {
-                    OrderInfo orderInfo = JSONObject.parseObject(line, OrderInfo.class);
+        DataStreamSource<String> orderInfoKafkaDS = env.addSource(MyKafkaUtil.getKafkaSource(orderInfoSourceTopic, groupId));
+        DataStreamSource<String> orderDetailKafkaDS = env.addSource(MyKafkaUtil.getKafkaSource(orderDetailSourceTopic, groupId));
 
-                    // yyyy-MM-dd HH:mm:ss
+        //TODO 3.将每行数据转换为JavaBean,提取时间戳生成WaterMark
+        WatermarkStrategy<OrderInfo> orderInfoWatermarkStrategy = WatermarkStrategy.<OrderInfo>forMonotonousTimestamps().withTimestampAssigner((elem, ts) -> elem.getCreate_ts());
+        WatermarkStrategy<OrderDetail> orderDetailWatermarkStrategy = WatermarkStrategy.<OrderDetail>forMonotonousTimestamps().withTimestampAssigner((elem, ts) -> elem.getCreate_ts());
+
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        KeyedStream<OrderInfo, Long> orderInfoWithIdKeyedStream = orderInfoKafkaDS.map(json -> {
+
+                    // 将JSON字符串转换为Javabean
+                    OrderInfo orderInfo = JSONObject.parseObject(json, OrderInfo.class);
+                    // 取出时间字段 2021-11-20 21:04:08
                     String create_time = orderInfo.getCreate_time();
-                    String[] dateHourArr = create_time.split(" ");
-                    orderInfo.setCreate_date(dateHourArr[0]);
-                    orderInfo.setCreate_hour(dateHourArr[1].split(":")[0]);
+                    // 按照空格分割
+                    String[] createTimeArr = create_time.split(" ");
 
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                    long ts = sdf.parse(create_time).getTime();
-                    orderInfo.setCreate_ts(ts);
+                    orderInfo.setCreate_date(createTimeArr[0]);
+                    orderInfo.setCreate_hour(createTimeArr[1]);
+                    orderInfo.setCreate_ts(sdf.parse(create_time).getTime());
+
                     return orderInfo;
                 })
-                .assignTimestampsAndWatermarks(WatermarkStrategy.<OrderInfo>forBoundedOutOfOrderness(Duration.ofSeconds(1)).withTimestampAssigner(new SerializableTimestampAssigner<OrderInfo>() {
-                    @Override
-                    public long extractTimestamp(OrderInfo element, long recordTimestamp) {
-                        return element.getCreate_ts();
-                    }
-                }));
+                .assignTimestampsAndWatermarks(orderInfoWatermarkStrategy)
+                .keyBy(json -> json.getId());
 
-        SingleOutputStreamOperator<OrderDetail> orderDetailWihtWMDS = orderDetailStrDS.map(line -> {
-                    OrderDetail orderDetail = JSONObject.parseObject(line, OrderDetail.class);
-
-                    String create_time = orderDetail.getCreate_time();
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-                    long ts = sdf.parse(create_time).getTime();
-                    orderDetail.setCreate_ts(ts);
+        KeyedStream<OrderDetail, Long> orderDetailWithOrderIdKeyedStream = orderDetailKafkaDS.map(json -> {
+                    OrderDetail orderDetail = JSONObject.parseObject(json, OrderDetail.class);
+                    orderDetail.setCreate_ts(sdf.parse(orderDetail.getCreate_time()).getTime());
                     return orderDetail;
                 })
-                .assignTimestampsAndWatermarks(WatermarkStrategy.<OrderDetail>forBoundedOutOfOrderness(Duration.ofSeconds(1)).withTimestampAssigner(new SerializableTimestampAssigner<OrderDetail>() {
-                    @Override
-                    public long extractTimestamp(OrderDetail element, long recordTimestamp) {
-                        return element.getCreate_ts();
-                    }
-                }));
+                .assignTimestampsAndWatermarks(orderDetailWatermarkStrategy)
+                .keyBy(json -> json.getOrder_id());
 
-        //TODO 4.将两条流进行JOIN
-        SingleOutputStreamOperator<OrderWide> orderWideDS = orderInfoWithWMDS.keyBy(OrderInfo::getId)
-                .intervalJoin(orderDetailWihtWMDS.keyBy(OrderDetail::getOrder_id))
+        //TODO 4.双流JOIN
+        SingleOutputStreamOperator<OrderWide> orderWideDS = orderInfoWithIdKeyedStream
+                .intervalJoin(orderDetailWithOrderIdKeyedStream)
+                // 生产环境,为了不丢数据,设置时间为最大网络延迟
                 .between(Time.seconds(-5), Time.seconds(5))
                 .process(new ProcessJoinFunction<OrderInfo, OrderDetail, OrderWide>() {
                     @Override
                     public void processElement(OrderInfo orderInfo, OrderDetail orderDetail, ProcessJoinFunction<OrderInfo, OrderDetail, OrderWide>.Context ctx, Collector<OrderWide> out) throws Exception {
-                        out.collect(new OrderWide(orderInfo, orderDetail));
+                        out.collect(new OrderWide(orderInfo,orderDetail));
                     }
                 });
 
-        // 打印测试
-        orderWideDS.print("OrderWide>>>>>>");
 
-        //TODO 5.关联维度信息
-        //TODO 5.1 关联用维度
-        SingleOutputStreamOperator<OrderWide> orderWideWithUserDS = AsyncDataStream.unorderedWait(orderWideDS,
-                new DimAsyncFunction<OrderWide>("DIM_USER_INFO") {
-                    @Override
-                    public String getId(OrderWide input) {
-                        return input.getUser_id().toString();
-                    }
-
-                    @Override
-                    public void join(OrderWide input, JSONObject dimInfo) {
-
-                        String birthday = dimInfo.getString("BIRTHDAY");
-                        String gender = dimInfo.getString("GENDER");
-
-                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-
-                        // 获取当前时间
-                        long ts = System.currentTimeMillis();
-                        long time = ts;
-
-                        try {
-                            time = sdf.parse(birthday).getTime();
-                        } catch (ParseException e) {
-                            e.printStackTrace();
-                        }
-
-                        // 当前时间减去出生日期，计算年龄
-                        long age = (ts - time) / (1000L * 60 * 60 * 34 * 365);
-
-                        // 将写别与年龄补充道OrderWide
-                        input.setUser_gender(gender);
-                        input.setUser_age(Integer.parseInt(age + ""));
-                    }
-                }, 100, TimeUnit.SECONDS);
-
-//        orderWideWithUserDS.print("User>>>>>>>");
-
-
-        //TODO 5.2关联地区维度
-        SingleOutputStreamOperator<OrderWide> orderWideWithProvinceDS = AsyncDataStream.unorderedWait(orderWideWithUserDS,
-                new DimAsyncFunction<OrderWide>("DIM_BASE_PROVINCE") {
-                    @Override
-                    public String getId(OrderWide input) {
-                        return input.getProvince_id().toString();
-                    }
-
-                    @Override
-                    public void join(OrderWide orderWide, JSONObject dimInfo) {
-                        String name = dimInfo.getString("NAME");
-                        String area_code = dimInfo.getString("AREA_CODE");
-                        String iso_code = dimInfo.getString("ISO_CODE");
-                        String iso_3166_2 = dimInfo.getString("ISO_3166_2");
-
-                        orderWide.setProvince_name(name);
-                        orderWide.setProvince_area_code(area_code);
-                        orderWide.setProvince_iso_code(iso_code);
-                        orderWide.setProvince_3166_2_code(iso_3166_2);
-                    }
-                }, 100, TimeUnit.SECONDS);
-
-        //TODO 5.3关联SKU维度
-        SingleOutputStreamOperator<OrderWide> orderWideWithSkuDS = AsyncDataStream.unorderedWait(orderWideWithProvinceDS,
-                new DimAsyncFunction<OrderWide>("DIM_SKU_INFO") {
-                    @Override
-                    public String getId(OrderWide input) {
-                        return input.getSku_id().toString();
-                    }
-
-                    @Override
-                    public void join(OrderWide orderWide, JSONObject dimInfo) {
-                        orderWide.setSku_name(dimInfo.getString("SKU_NAME"));
-                        orderWide.setCategory3_id(dimInfo.getLong("CATEGORY3_ID"));
-                        orderWide.setSpu_id(dimInfo.getLong("SPU_ID"));
-                        orderWide.setTm_id(dimInfo.getLong("TM_ID"));
-
-                    }
-                }, 60, TimeUnit.SECONDS);
-
-        //TODO 5.4 关联SPU维度
-        SingleOutputStreamOperator<OrderWide> orderWideWithSpuDS = AsyncDataStream.unorderedWait(orderWideWithSkuDS,
-                new DimAsyncFunction<OrderWide>("DIM_SPU_INFO") {
-                    @Override
-                    public String getId(OrderWide input) {
-                        return input.getSpu_id().toString();
-                    }
-
-                    @Override
-                    public void join(OrderWide orderWide, JSONObject dimInfo) {
-                        orderWide.setSpu_name(dimInfo.getString("SPU_NAME"));
-                    }
-                }, 60, TimeUnit.SECONDS);
-
-        //TODO 5.5关联TradeMark维度
-        SingleOutputStreamOperator<OrderWide> orderWideWithTmDS = AsyncDataStream.unorderedWait(orderWideWithSpuDS,
-                new DimAsyncFunction<OrderWide>("DIM_BASE_TRADEMARK") {
-                    @Override
-                    public String getId(OrderWide input) {
-                        return input.getTm_id().toString();
-                    }
-
-                    @Override
-                    public void join(OrderWide orderWide, JSONObject dimInfo) {
-                        orderWide.setTm_name(dimInfo.getString("TM_NAME"));
-                    }
-                }, 60, TimeUnit.SECONDS);
-
-        //TODO 5.6关联Category维度
-        SingleOutputStreamOperator<OrderWide> orderWideWithCategory3DS = AsyncDataStream.unorderedWait(orderWideWithTmDS,
-                new DimAsyncFunction<OrderWide>("DIM_BASE_CATEGORY3") {
-                    @Override
-                    public String getId(OrderWide input) {
-                        return input.getCategory3_id().toString();
-                    }
-
-                    @Override
-                    public void join(OrderWide orderWide, JSONObject dimInfo) {
-                        orderWide.setCategory3_name(dimInfo.getString("NAME"));
-                    }
-                }, 60, TimeUnit.SECONDS);
-
-        // 打印测试
-        orderWideWithCategory3DS.map(JSONObject::toJSONString).print();
-
-        //TODO 6.将数据写入Kafka
-        orderWideWithCategory3DS
-                .map(JSONObject::toJSONString)
-                .addSink(MyKafkaUtil.getKafkaSink(orderWideSinkTopic));
-
-        //TODO 7.启动
-        env.execute();
     }
 }
