@@ -34,7 +34,7 @@ public class ClickhouseUtil {
                         field.setAccessible(true);
                         try {
                             Object o = field.get(t);
-                            //i代表流对象字段的下标，
+                            // i代表流对象字段的下标，
                             // 公式：写入表字段位置下标 = 对象流对象字段下标 + 1 - 跳过字段的偏移量
                             // 一旦跳过一个字段 那么写入字段下标就会和原本字段下标存在偏差
                             jdbcPreparedStatement.setObject(i + 1 - skipOffset, o);

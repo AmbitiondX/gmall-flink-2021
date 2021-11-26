@@ -21,6 +21,7 @@ import org.apache.flink.util.OutputTag;
 import org.apache.kafka.clients.producer.ProducerRecord;
 
 import javax.annotation.Nullable;
+import java.nio.charset.StandardCharsets;
 
 public class BaseDBApp {
     public static void main(String[] args) {
@@ -100,7 +101,7 @@ public class BaseDBApp {
         kafkaMainDS.addSink(MyKafkaUtil.getFlinkKafkaProducer(new KafkaSerializationSchema<JSONObject>() {
             @Override
             public ProducerRecord<byte[], byte[]> serialize(JSONObject element, @Nullable Long timestamp) {
-                return element;
+                return new ProducerRecord<>(element.getString("sinkTable"), element.toJSONString().getBytes());
             }
         }));
     }

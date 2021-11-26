@@ -155,6 +155,21 @@
             <version>3.3.0</version>
         </dependency>
 
+
+        <!--  FlinkSQL相关依赖-->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-table-api-java-bridge_${scala.version}</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-table-planner-blink_${scala.version}</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+
+
         <!-- 加入ClickHouse依赖包-->
         <dependency>
             <groupId>ru.yandex.clickhouse</groupId>

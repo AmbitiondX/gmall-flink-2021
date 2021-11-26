@@ -31,10 +31,13 @@ public class DimSinkFunction extends RichSinkFunction<JSONObject> {
         // upsert table database.tablename (id,name,age) values ('id','name','age')
 
         try {
-            Set<String> keySet = value.keySet();
+
+            JSONObject data = value.getJSONObject("data");
+
+            Set<String> keySet = data.keySet();
             String keys = StringUtils.join(keySet, ",");
 
-            Collection<Object> valueColl = value.values();
+            Collection<Object> valueColl = data.values();
             String values = StringUtils.join(valueColl, "','");
 
             StringBuilder upsertSql = new StringBuilder("upsert table ")
