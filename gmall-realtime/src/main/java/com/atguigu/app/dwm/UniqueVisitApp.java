@@ -102,7 +102,7 @@ public class UniqueVisitApp {
                     String curDate = sdf.format(ts);
 
                     // 进来的数据都是今天的数据，
-                    // 如果数据中的firstVisitDate == null，说明：要么时新用户，要么距离上一次访问已经超过一天了
+                    // 如果数据中的firstVisitDate == null，说明：要么时是用户，要么距离上一次访问已经超过一天了
                     // !firstVisitDate.equals(curDate)，可能是昨天还没过期的数据，所以相等的时候，代表今天已经访问过，取反表示今天还没访问过
                     if (firstVisitDate == null || !firstVisitDate.equals(curDate)) {
                         firstVisitTime.update(curDate);

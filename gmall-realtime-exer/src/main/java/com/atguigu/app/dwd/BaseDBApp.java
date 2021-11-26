@@ -11,11 +11,10 @@ import com.atguigu.bean.TableProcess;
 import com.atguigu.utils.MyKafkaUtil;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.runtime.state.filesystem.FsStateBackend;
-import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.streaming.connectors.kafka.KafkaSerializationSchema;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
@@ -23,9 +22,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 
 import javax.annotation.Nullable;
 
-
 public class BaseDBApp {
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         //1.获取执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         /*env.setParallelism(1);
@@ -38,72 +36,72 @@ public class BaseDBApp {
         // 修改用户名，如果放在集群上跑，不需要设置
         System.setProperty("HADOOP_USER_NAME","atguigu");*/
 
-        //TODO 2.获取ods_base_db数据流
-        DataStreamSource<String> kafkaDS = env.addSource(MyKafkaUtil.getKafkaSource("ods_base_db", "ods_base_db_consumer"));
+        String sourceTable = "ods_base_db";
+        String groupId = "ods_base_db_consumer";
 
-        //TODO 3.将每行数据转换为JSON对象 过滤脏数据
-        SingleOutputStreamOperator<JSONObject> jsonObjDS = kafkaDS.process(new ProcessFunction<String, JSONObject>() {
+        // 2.获取流
+        DataStreamSource<String> kafkaDS = env.addSource(MyKafkaUtil.getFlinkKafkaConsumer(sourceTable, groupId));
+
+        // 3.转化为json对象,并过滤不是json格式的数据
+        OutputTag<String> dirtyTag = new OutputTag<String>("dirtyData") {
+        };
+        SingleOutputStreamOperator<JSONObject> jsonDS = kafkaDS.process(new ProcessFunction<String, JSONObject>() {
             @Override
             public void processElement(String value, ProcessFunction<String, JSONObject>.Context ctx, Collector<JSONObject> out) throws Exception {
                 try {
                     JSONObject jsonObject = JSONObject.parseObject(value);
                     out.collect(jsonObject);
                 } catch (Exception e) {
-                    System.out.println("dirty>>>>>>" + value);
+                    e.printStackTrace();
+                    ctx.output(dirtyTag, value);
                 }
             }
         });
 
-        //TODO 4.过滤删除(type=delete)数据
-        //生产环境中一般不会生成delete的数据，但是学习的脚本有delete的数据，所以过滤为好
-        SingleOutputStreamOperator<JSONObject> filterDS = jsonObjDS.filter(new FilterFunction<JSONObject>() {
+        // 4.过滤掉type=delete的数据
+        SingleOutputStreamOperator<JSONObject> filterDS = jsonDS.filter(new FilterFunction<JSONObject>() {
             @Override
             public boolean filter(JSONObject value) throws Exception {
                 return !"delete".equals(value.getString("type"));
             }
         });
 
-        //TODO 4.使用flinkCDC获取table_process的数据，并转为JavaBean，做成广播流，将流广播出去
+        // 5.使用FlinkCDC获取配置表信息
         DebeziumSourceFunction<String> sourceFunction = MySQLSource.<String>builder()
                 .hostname("hadoop102")
                 .port(3306)
-                .username("root")
-                .password("root")
                 .databaseList("gmall2021_realtime")
                 .tableList("gmall2021_realtime.table_process")
                 .startupOptions(StartupOptions.initial())
                 .deserializer(new MyDeserializerFunc())
                 .build();
-        DataStreamSource<String> streamSource = env.addSource(sourceFunction);
-        MapStateDescriptor<String, TableProcess> mapStateDescriptor = new MapStateDescriptor<>("mapStateDescriptor", String.class, TableProcess.class);
 
-        BroadcastStream<String> broadcastStream = streamSource.broadcast(mapStateDescriptor);
+        DataStreamSource<String> MySqlDS = env.addSource(sourceFunction);
 
-        //TODO 5.connect主流、广播流
-        BroadcastConnectedStream<JSONObject, String> connect = filterDS.connect(broadcastStream);
+        // 6.设置状态
+        MapStateDescriptor<String, TableProcess> mapStateDescriptor = new MapStateDescriptor<>("mapState", String.class, TableProcess.class);
+        BroadcastStream<String> broadcastStream = MySqlDS.broadcast(mapStateDescriptor);
 
-        //TODO 6.使用process方法，处理两条流
-        OutputTag<JSONObject> outputTagHbase = new OutputTag<JSONObject>("hbase") {
+        // 7.连接两条流
+        OutputTag<JSONObject> hbaseTag = new OutputTag<JSONObject>("hbase") {
         };
-        SingleOutputStreamOperator<JSONObject> kafkaMainDS = connect.process(new TableProcessFunction(mapStateDescriptor, outputTagHbase));
+        BroadcastConnectedStream<JSONObject, String> connectedStream = filterDS.connect(broadcastStream);
 
-        //TODO 7.分流，并写出
-        DataStream<JSONObject> hbaseDS = kafkaMainDS.getSideOutput(outputTagHbase);
-        hbaseDS.print("hbase>>>>>>");
-        kafkaMainDS.print("kafka>>>>>>");
+        // 8.处理流信息
+        SingleOutputStreamOperator<JSONObject> kafkaMainDS = connectedStream.process(new TableProcessFunction(mapStateDescriptor, hbaseTag));
 
-        hbaseDS.addSink(new DimSinkFunction());
+        // 9.获取侧输出流
+        DataStream<JSONObject> hbaseDS = kafkaMainDS.getSideOutput(hbaseTag);
 
-        kafkaMainDS.addSink(MyKafkaUtil.getKafkaSource(new KafkaSerializationSchema<JSONObject>() {
+        // 10.将数据写出
+        hbaseDS.addSink(new RichSinkFunction<JSONObject>() {
+        });
+
+        kafkaMainDS.addSink(MyKafkaUtil.getFlinkKafkaProducer(new KafkaSerializationSchema<JSONObject>() {
             @Override
             public ProducerRecord<byte[], byte[]> serialize(JSONObject element, @Nullable Long timestamp) {
-                return new ProducerRecord<>(element.getString("sinkTable"),element.getString("data").getBytes());
+                return element;
             }
         }));
-
-
-
-        //TODO 8.执行任务
-        env.execute();
     }
 }

@@ -2,7 +2,6 @@ package com.atguigu.app.func;
 
 import com.alibaba.fastjson.JSONObject;
 import com.atguigu.common.GmallConfig;
-import com.atguigu.utils.DimUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
@@ -14,13 +13,10 @@ import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Set;
 
-
 public class DimSinkFunction extends RichSinkFunction<JSONObject> {
-    // 定义Phoenix连接
+
     private Connection connection;
-
-    private PreparedStatement prepareStatement;
-
+    PreparedStatement preparedStatement;
 
     @Override
     public void open(Configuration parameters) throws Exception {
@@ -28,68 +24,47 @@ public class DimSinkFunction extends RichSinkFunction<JSONObject> {
         connection = DriverManager.getConnection(GmallConfig.PHOENIX_SERVER);
     }
 
-    //jsonObject:{"id":"1001","name":"zhangsan","sinkTable":"dim_xxx_xxx"}
-    //jsonObject:{"sinkTable":"dim_base_trademark","database":"gmall-flink-201109","data":{"tm_name":"sh","id":13},"type":"insert","before-data":{},"table":"base_trademark"}
     @Override
-    public void invoke(JSONObject jsonObject, Context context) throws Exception {
-        PreparedStatement preparedStatement = null;
+    public void invoke(JSONObject value, Context context) throws Exception {
+        preparedStatement = null;
 
         try {
-            // 获取数据中的Key以及Value
-            JSONObject data = jsonObject.getJSONObject("data");
-            Set<String> keys = data.keySet();
-            Collection<Object> values = data.values();
-
-            // 获取表名
-            String tableName = jsonObject.getString("sink_table");
-
-            // 创建插入数据的SQL
-            String upsertSql = genUpsertSql(tableName, keys, values);
+            String upsertSql = genUpsertSQL(value);
             System.out.println(upsertSql);
 
-            // 编译SQL
-            prepareStatement = connection.prepareStatement(upsertSql);
+            // 预编译SQL
+            preparedStatement = connection.prepareStatement(upsertSql);
 
-            // 执行
-            preparedStatement.executeUpdate();
+            // 执行SQL
+            preparedStatement.execute();
 
-            // 提交
+            // 手动提交(默认是批量提交，为了更快的显示结果，改为手动提交)
             connection.commit();
-
-            // 判断如果为更新数据，则删除Redis中数据
-            if ("update".equals(jsonObject.getString("type"))) {
-                String sourceTable = jsonObject.getString("table");
-                String value = jsonObject.getJSONObject("data").getString("id");
-                String key = sourceTable + ":" + value;
-                DimUtil.deleteCached(key);
-            }
         } catch (SQLException e) {
             e.printStackTrace();
-            System.out.println("插入Phoenix数据失败");
+            System.out.println("插入数据失败！");
         } finally {
             if (preparedStatement != null) {
                 preparedStatement.close();
             }
         }
+
     }
 
-    //upsert into xx.xx(id,name) values('1001','zhangsan','male')
-    private String genUpsertSql(JSONObject data, String sinkTable) {
-        //取出数据中的Key和Value集合
+
+    // upsert into database.tableName (id,name,other...) values ('id','name','other'...)
+    private String genUpsertSQL(JSONObject jsonObject) {
+
+        JSONObject data = jsonObject.getJSONObject("data");
+
+        // 获取字段名
         Set<String> keySet = data.keySet();
-        Collection<Object> values = data.values();
+        String keys = StringUtils.join(keySet, ",");
 
-        return "upsert into" +
-                GmallConfig.HBASE_SCHEMA + "." + sinkTable +
-                "(" + StringUtils.join(keySet,",") + ")" +
-                " values('" + StringUtils.join(values,"',") + "')";
+        // 获取字段值
+        Collection<Object> valueColl = data.values();
+        String values = StringUtils.join(valueColl, "','");
+
+        return "upsert into " + GmallConfig.HBASE_SCHEMA + "." + jsonObject.getString("sinkTable") + "(" + keys + ") values('" + values + "')";
     }
-
-    private String genUpsertSql(String sinkTable, Set<String> keySet, Collection<Object> values) {
-        return "upsert into" +
-                GmallConfig.HBASE_SCHEMA + "." + sinkTable +
-                "(" + StringUtils.join(keySet,",") + ")" +
-                " values('" + StringUtils.join(values,"',") + "')";
-    }
-
 }

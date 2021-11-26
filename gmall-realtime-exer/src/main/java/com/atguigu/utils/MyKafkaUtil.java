@@ -37,15 +37,15 @@ public class MyKafkaUtil {
         return new FlinkKafkaProducer(topic, new SimpleStringSchema(), properties);
     }
 
-    public static <T> FlinkKafkaProducer<T> getKafkaSink(KafkaSerializationSchema<T> kafkaSerializationSchema) {
-
-//        KafkaProducer kafkaProducer = new KafkaProducer<>();
-//        kafkaProducer.send(ProducerRecord producerRecord)
-
-        return new FlinkKafkaProducer<T>(DEFAULT_TOPIC,
+    public static <T> FlinkKafkaProducer<T> getFlinkKafkaProducer(KafkaSerializationSchema<T> kafkaSerializationSchema) {
+        return new FlinkKafkaProducer(
+                DEFAULT_TOPIC,
                 kafkaSerializationSchema,
                 properties,
-                FlinkKafkaProducer.Semantic.EXACTLY_ONCE);
+                FlinkKafkaProducer.Semantic.EXACTLY_ONCE
+                );
     }
+
+
 
 }

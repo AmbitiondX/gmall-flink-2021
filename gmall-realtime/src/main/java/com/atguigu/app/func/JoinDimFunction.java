@@ -8,5 +8,5 @@ public interface JoinDimFunction<T> {
     String getId(T input);
 
     // 将维度信息补充到事实数据上
-    void join(T input, JSONObject dimInfo);
+    void join(T input, JSONObject dimInfo) throws Exception;
 }

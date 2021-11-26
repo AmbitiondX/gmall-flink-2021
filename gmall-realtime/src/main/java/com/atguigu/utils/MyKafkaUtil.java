@@ -18,12 +18,8 @@ public class MyKafkaUtil {
         properties.setProperty("bootstrap.servers", KAFKA_SERVER);
     }
 
-    public static <T> FlinkKafkaProducer<T> getFlinkKafkaProducerBySchema(KafkaSerializationSchema<T> kafkaSerializationSchema) {
-        return new FlinkKafkaProducer<T>(
-                DEFAULT_TOPIC,
-                kafkaSerializationSchema,
-                properties,
-                FlinkKafkaProducer.Semantic.EXACTLY_ONCE);
+    public static <T> FlinkKafkaProducer<T> getKafkaSource(KafkaSerializationSchema<T> kafkaSerializationSchema) {
+        return new FlinkKafkaProducer<T>(DEFAULT_TOPIC, kafkaSerializationSchema, properties, FlinkKafkaProducer.Semantic.EXACTLY_ONCE);
     }
 
     public static FlinkKafkaProducer<String> getKafkaSink(String topic){

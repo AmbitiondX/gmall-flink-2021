@@ -135,6 +135,8 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject, S
             filterColumns(value.getJSONObject("data"),tableProcess.getSinkColumns());
 
             //3.根据广播状态数据  分流   主流：Kafka   侧输出流：HBase
+            // 添加sinkTable字段
+            value.put("sinkTable",tableProcess.getSinkTable());
             if (TableProcess.SINK_TYPE_HBASE.equals(tableProcess.getSinkType())) {
                 ctx.output(outputTag,value);
             } else if (TableProcess.SINK_TYPE_KAFKA.equals(tableProcess.getSinkType())) {
