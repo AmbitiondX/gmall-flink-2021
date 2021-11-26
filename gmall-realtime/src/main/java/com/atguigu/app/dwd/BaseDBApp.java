@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.alibaba.ververica.cdc.connectors.mysql.MySQLSource;
 import com.alibaba.ververica.cdc.connectors.mysql.table.StartupOptions;
 import com.alibaba.ververica.cdc.debezium.DebeziumSourceFunction;
+import com.atguigu.app.func.DimSinkFunction;
 import com.atguigu.app.func.MyDeserializerFunc;
 import com.atguigu.app.func.TableProcessFunction;
 import com.atguigu.bean.TableProcess;
@@ -86,6 +87,8 @@ public class BaseDBApp {
         DataStream<JSONObject> hbaseDS = kafkaMainDS.getSideOutput(outputTagHbase);
         hbaseDS.print("hbase>>>>>>");
         kafkaMainDS.print("kafka>>>>>>");
+
+        hbaseDS.addSink(new DimSinkFunction());
 
 
 
