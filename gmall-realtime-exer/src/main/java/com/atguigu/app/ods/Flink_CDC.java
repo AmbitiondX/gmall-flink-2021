@@ -20,7 +20,7 @@ public class Flink_CDC {
                 .username("root")
                 .password("root")
                 .databaseList("gmall_rt")
-                .startupOptions(StartupOptions.initial())
+                .startupOptions(StartupOptions.latest())
                 .deserializer(new MyDeserializerFunc())
                 .build();
 
@@ -31,7 +31,7 @@ public class Flink_CDC {
         mysqlDS.print();
 
         // 将流中的数据写入kafka
-        mysqlDS.addSink(MyKafkaUtil.getFlinkKafkaProducer("ods_base_db_exer"));
+        mysqlDS.addSink(MyKafkaUtil.getFlinkKafkaProducer("ods_base_db"));
 
 
         env.execute();

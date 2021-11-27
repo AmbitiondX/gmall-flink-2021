@@ -40,7 +40,7 @@ public class DimSinkFunction extends RichSinkFunction<JSONObject> {
             Collection<Object> valueColl = data.values();
             String values = StringUtils.join(valueColl, "','");
 
-            StringBuilder upsertSql = new StringBuilder("upsert table ")
+            StringBuilder upsertSql = new StringBuilder("upsert into ")
                     .append(GmallConfig.HBASE_SCHEMA)
                     .append(".")
                     .append(value.getString("sinkTable"))
@@ -51,6 +51,7 @@ public class DimSinkFunction extends RichSinkFunction<JSONObject> {
                     .append("')");
 
             preparedStatement = connection.prepareStatement(upsertSql.toString());
+            System.out.println("插入语句：" + upsertSql);
             preparedStatement.execute();
             connection.commit();
         } catch (SQLException e) {

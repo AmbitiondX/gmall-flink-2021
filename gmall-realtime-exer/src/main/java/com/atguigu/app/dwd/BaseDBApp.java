@@ -24,7 +24,7 @@ import javax.annotation.Nullable;
 import java.nio.charset.StandardCharsets;
 
 public class BaseDBApp {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         //1.获取执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         /*env.setParallelism(1);
@@ -58,6 +58,7 @@ public class BaseDBApp {
                 }
             }
         });
+//        jsonDS.print("jsonDS>>>>");
 
         // 4.过滤掉type=delete的数据
         SingleOutputStreamOperator<JSONObject> filterDS = jsonDS.filter(new FilterFunction<JSONObject>() {
@@ -71,6 +72,8 @@ public class BaseDBApp {
         DebeziumSourceFunction<String> sourceFunction = MySQLSource.<String>builder()
                 .hostname("hadoop102")
                 .port(3306)
+                .username("root")
+                .password("root")
                 .databaseList("gmall2021_realtime")
                 .tableList("gmall2021_realtime.table_process")
                 .startupOptions(StartupOptions.initial())
@@ -94,9 +97,11 @@ public class BaseDBApp {
         // 9.获取侧输出流
         DataStream<JSONObject> hbaseDS = kafkaMainDS.getSideOutput(hbaseTag);
 
+        hbaseDS.print("hbaseDS>>>>>");
+        kafkaMainDS.print("kafkaMainDS>>>>>");
+
         // 10.将数据写出
-        hbaseDS.addSink(new RichSinkFunction<JSONObject>() {
-        });
+        hbaseDS.addSink(new DimSinkFunction());
 
         kafkaMainDS.addSink(MyKafkaUtil.getFlinkKafkaProducer(new KafkaSerializationSchema<JSONObject>() {
             @Override
@@ -104,5 +109,8 @@ public class BaseDBApp {
                 return new ProducerRecord<>(element.getString("sinkTable"), element.toJSONString().getBytes());
             }
         }));
+
+
+        env.execute();
     }
 }

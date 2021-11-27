@@ -42,10 +42,15 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject,St
 
     @Override
     public void processBroadcastElement(String value, BroadcastProcessFunction<JSONObject, String, JSONObject>.Context ctx, Collector<JSONObject> out) throws Exception {
+
         // 将数据封装成javabean
-        TableProcess tableProcess = JSON.parseObject(value, TableProcess.class);
+        String data = JSON.parseObject(value).getString("data");
+        TableProcess tableProcess = JSON.parseObject(data, TableProcess.class);
 
         // 判断是否需要创建表
+
+//        System.out.println(TableProcess.SINK_TYPE_HBASE.equals(tableProcess.getSinkType()));
+
         if (TableProcess.SINK_TYPE_HBASE.equals(tableProcess.getSinkType())) {
 
             createTable(
@@ -54,13 +59,13 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject,St
                     tableProcess.getSinkPk(),
                     tableProcess.getSinkExtend()
             );
-
-            // 设计广播状态的key,并广播状态
-            String key = tableProcess.getSourceTable() + "-" + tableProcess.getOperateType();
-            BroadcastState<String, TableProcess> broadcastState = ctx.getBroadcastState(mapStateDescriptor);
-            broadcastState.put(key,tableProcess);
-
         }
+
+        // 设计广播状态的key,并广播状态
+        String key = tableProcess.getSourceTable() + "-" + tableProcess.getOperateType();
+        BroadcastState<String, TableProcess> broadcastState = ctx.getBroadcastState(mapStateDescriptor);
+        System.out.println("processBroadcastElement" + key);
+        broadcastState.put(key,tableProcess);
 
 
 
@@ -103,7 +108,7 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject,St
             }
 
             createSql.append(") ").append(sinkExtend);
-
+            System.out.println("建表语句：" + createSql);
             preparedStatement = connection.prepareStatement(createSql.toString());
             preparedStatement.execute();
 
@@ -127,16 +132,21 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject,St
         ReadOnlyBroadcastState<String, TableProcess> broadcastState = ctx.getBroadcastState(mapStateDescriptor);
         // 判断是否有此表的配置表信息
         String key = value.getString("table") + "-" + value.getString("type");
+        System.out.println("processElement  " + key);
         TableProcess tableProcess = broadcastState.get(key);
+
         if (tableProcess != null) {
             // 过滤多余的字段
-            filterColumn(value,tableProcess);
+            filterColumn(value.getJSONObject("data"),tableProcess);
+            System.out.println("toJSONString>>>>" + value.toJSONString());
             // 补充输出表字段
             value.put("sinkTable", tableProcess.getSinkTable());
             if (TableProcess.SINK_TYPE_HBASE.equals(tableProcess.getSinkType())) {
                 ctx.output(hbaseTag,value);
             } else if (TableProcess.SINK_TYPE_KAFKA.equals(tableProcess.getSinkType())) {
                 out.collect(value);
+            } else {
+                System.out.println("程序有误！！！");
             }
         } else {
             System.out.println(key + "不存在");
