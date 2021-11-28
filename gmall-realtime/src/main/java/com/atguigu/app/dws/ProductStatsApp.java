@@ -14,6 +14,7 @@ import com.atguigu.utils.MyKafkaUtil;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.connector.jdbc.internal.GenericJdbcSinkFunction;
 import org.apache.flink.streaming.api.datastream.AsyncDataStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -263,7 +264,7 @@ public class ProductStatsApp {
 
 
         //TODO 6.补充商品维度信息
-//6.1 补充SKU维度
+        //6.1 补充SKU维度
         SingleOutputStreamOperator<ProductStats> productStatsWithSkuDstream =
                 AsyncDataStream.unorderedWait(productStatsDstream,
                         new DimAsyncFunction<ProductStats>("DIM_SKU_INFO") {
@@ -330,6 +331,8 @@ public class ProductStatsApp {
         productStatsWithTmDstream.addSink(
                 ClickhouseUtil.<ProductStats>getJdbcSink(
                         "insert into product_stats_2021 values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
+
+
 
 
 
