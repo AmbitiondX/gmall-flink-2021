@@ -1,6 +1,7 @@
 package atguigu.app;
 
-import com.atguigu.bean.WaterSensor;
+import atguigu.bean.WaterSensor;
+
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.ReduceFunction;

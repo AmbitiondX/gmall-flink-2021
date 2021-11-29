@@ -1,7 +1,8 @@
 package atguigu.app;
 
-import com.atguigu.bean.Bean1;
-import com.atguigu.bean.Bean2;
+
+import atguigu.bean.Bean1;
+import atguigu.bean.Bean2;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.java.tuple.Tuple2;

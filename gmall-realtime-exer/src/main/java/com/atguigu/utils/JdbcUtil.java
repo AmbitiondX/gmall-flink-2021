@@ -30,6 +30,10 @@ public class JdbcUtil {
             T t = clz.newInstance();
             for (int i = 1; i < columnCount + 1; i++) {
                 String columnName = metaData.getColumnName(i);
+                // underScoreToCamel == true时，将columnName转化为小驼峰
+                if (underScoreToCamel == true) {
+                    columnName = CaseFormat.LOWER_UNDERSCORE.to(CaseFormat.LOWER_CAMEL, columnName.toLowerCase());
+                }
                 Object object = resultSet.getObject(columnName);
                 BeanUtils.setProperty(t, columnName, object);
             }
@@ -48,7 +52,7 @@ public class JdbcUtil {
         Class.forName(GmallConfig.PHOENIX_DRIVER);
         Connection connection = DriverManager.getConnection(GmallConfig.PHOENIX_SERVER);
 
-        List<JSONObject> jsonObjects = queryList(connection, "select * from GMALL210426_REALTIME.DIM_BASE_CATEGORY1", JSONObject.class, false);
+        List<JSONObject> jsonObjects = queryList(connection, "select * from GMALL2021_REALTIME.DIM_BASE_TRADEMARK where id='12'", JSONObject.class, false);
 
         for (JSONObject jsonObject : jsonObjects) {
             System.out.println(jsonObject);

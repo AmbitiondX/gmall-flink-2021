@@ -12,5 +12,25 @@ public class KeywordUtil {
     public static List<String> analyze(String text) {
         StringReader sr = new StringReader(text);
         IKSegmenter ik = new IKSegmenter(sr, true);
+        Lexeme lex = null;
+        ArrayList<String> keywordList = new ArrayList<>();
+        while (true) {
+            try {
+                if ((lex = ik.next()) != null) {
+                    String lexemeText = lex.getLexemeText();
+                    keywordList.add(lexemeText);
+                } else {
+                    break;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return keywordList;
+    }
+
+    public static void main(String[] args) {
+        String text = "Apple iPhoneXSMax (A2104) 256GB 深空灰色 移动联通电信4G手机 双卡双待";
+        System.out.println(KeywordUtil.analyze(text));
     }
 }

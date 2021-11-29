@@ -2,8 +2,6 @@ package com.atguigu.app.func;
 
 import com.alibaba.fastjson.JSONObject;
 import com.atguigu.common.GmallConfig;
-import com.atguigu.utils.DimUtil;
-import com.atguigu.utils.RedisUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;

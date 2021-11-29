@@ -22,7 +22,7 @@ import java.text.SimpleDateFormat;
 import java.util.concurrent.TimeUnit;
 
 public class OrderWideApp {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         //TODO 1.获取执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
@@ -196,7 +196,10 @@ public class OrderWideApp {
         orderWideWithCategory3DS.print();
 
         //TODO 6.写入数据到Kafka  dwm_order_wide
-        orderWideWithCategory3DS.map(JSONObject::toJSONString).addSink(MyKafkaUtil.getKafkaSink(orderWideSinkTopic));
+//        orderWideWithCategory3DS.map(JSONObject::toJSONString).addSink(MyKafkaUtil.getKafkaSink(orderWideSinkTopic));
+
+
+        env.execute();
 
     }
 }
