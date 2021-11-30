@@ -10,49 +10,54 @@ import java.util.List;
 
 public class DimUtil {
 
-    public static JSONObject getDimInfo(Connection connection, String tableName, String pk) throws Exception {
-        // 查询redis
+    public static JSONObject getDimInfo(Connection connection, String tableName, String key) throws Exception {
+
+        // 先查询Redis
         Jedis jedis = RedisUtil.getJedis();
-        String redisKey = "DIM:" +tableName + ":" + pk;
-        String dimInfoStr = jedis.get(redisKey);
-        if (dimInfoStr != null) {
+        String redisKey = "DIM:" + tableName + ":" + "key";
+        String jsonStr = jedis.get(redisKey);
+
+        if (jsonStr != null) {
 
             // 重置过期时间
-            jedis.expire(redisKey, 3600 * 24);
-
+            jedis.expire(key, 24 * 60 * 60);
             // 归还连接
             jedis.close();
-
-            // 返回从redis查询到的数据
-            return JSON.parseObject(dimInfoStr);
+            // 返回值
+            return JSONObject.parseObject(jsonStr);
         }
 
-        //构建SQL语句 select * from db.tn where id = '1001'
-        String querySql = "select * from " + GmallConfig.HBASE_SCHEMA + "." + tableName + " where id = '" + pk + "'";
+        // 构建查询语句
+        StringBuilder selectSql = new StringBuilder("select * from ")
+                .append(GmallConfig.HBASE_SCHEMA)
+                .append(".")
+                .append(tableName)
+                .append(" where id = '")
+                .append(key)
+                .append("'");
 
-        // 查询Phoenix
-        List<JSONObject> queryList = JdbcUtil.queryList(connection, querySql, JSONObject.class, false);
+        List<JSONObject> list = JdbcUtil.queryList(connection, selectSql.toString(), JSONObject.class, false);
 
-        JSONObject dimInfo = queryList.get(0);
+        // 将查到的数据缓存到redis
+        jedis.set(key,list.get(0).toJSONString());
 
-        // 将数据写入Redis
-        jedis.set(redisKey, dimInfo.toJSONString());
-        jedis.expire(redisKey, 3600 * 24);
+        // 重置过期时间
+        jedis.expire(key, 24 * 60 * 60);
+
+        // 归还连接
         jedis.close();
 
-        //返回结果
-        return dimInfo;
-
+        return list.get(0);
     }
 
+    public static void deleteDiminfo(String tableName, String key) {
 
-    public static void delDimInfo(String tableName, String pk) {
-
-        String redisKey = "DIM:" + tableName + ":" + pk;
+        // 获取连接
         Jedis jedis = RedisUtil.getJedis();
+        String redisKey = "DIM:" + tableName + ":" + "key";
         jedis.del(redisKey);
 
         jedis.close();
-
     }
+
 }
