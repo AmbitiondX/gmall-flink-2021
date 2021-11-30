@@ -18,7 +18,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.*;
 
-public class TableProcessFunction extends BroadcastProcessFunction<JSONObject,String,JSONObject> {
+public class TableProcessFunction extends BroadcastProcessFunction<JSONObject, String, JSONObject> {
 
     private Connection connection;
     private PreparedStatement preparedStatement;
@@ -26,7 +26,7 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject,St
     private MapStateDescriptor<String, TableProcess> mapStateDescriptor;
     private OutputTag<JSONObject> hbaseTag;
 
-    public TableProcessFunction(MapStateDescriptor<String, TableProcess> mapStateDescriptor,OutputTag<JSONObject> hbaseTag) {
+    public TableProcessFunction(MapStateDescriptor<String, TableProcess> mapStateDescriptor, OutputTag<JSONObject> hbaseTag) {
         this.mapStateDescriptor = mapStateDescriptor;
         this.hbaseTag = hbaseTag;
     }
@@ -62,8 +62,7 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject,St
         String key = tableProcess.getSourceTable() + "-" + tableProcess.getOperateType();
         BroadcastState<String, TableProcess> broadcastState = ctx.getBroadcastState(mapStateDescriptor);
 
-        broadcastState.put(key,tableProcess);
-
+        broadcastState.put(key, tableProcess);
 
 
     }
@@ -73,7 +72,7 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject,St
 
         try {
 
-            if (sinkPk == null ) {
+            if (sinkPk == null) {
                 sinkPk = "id";
             }
 
@@ -132,14 +131,18 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject,St
 
         TableProcess tableProcess = broadcastState.get(key);
 
+        if ("order_info".equals(value.getString("table"))) {
+            System.out.println(tableProcess);
+        }
+
         if (tableProcess != null) {
             // 过滤多余的字段
-            filterColumn(value.getJSONObject("data"),tableProcess.getSinkColumns());
+            filterColumn(value.getJSONObject("data"), tableProcess.getSinkColumns());
 //            System.out.println("toJSONString>>>>" + value.toJSONString());
             // 补充输出表字段
             value.put("sinkTable", tableProcess.getSinkTable());
             if (TableProcess.SINK_TYPE_HBASE.equals(tableProcess.getSinkType())) {
-                ctx.output(hbaseTag,value);
+                ctx.output(hbaseTag, value);
             } else if (TableProcess.SINK_TYPE_KAFKA.equals(tableProcess.getSinkType())) {
                 out.collect(value);
             }

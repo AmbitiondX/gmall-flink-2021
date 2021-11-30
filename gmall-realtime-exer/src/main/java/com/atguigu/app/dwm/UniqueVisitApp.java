@@ -97,6 +97,8 @@ public class UniqueVisitApp {
             }
         });
 
+        filterDS.print("filterDS>>>>>");
+
 
         // 将filterDS写到Kafka
         filterDS.map(JSON::toString).addSink(MyKafkaUtil.getFlinkKafkaProducer(sinkTopic));
