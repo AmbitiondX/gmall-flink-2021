@@ -1,8 +1,12 @@
 package com.atguigu.app.dws;
 
+import com.atguigu.app.bean.ProvinceStats;
+import com.atguigu.utils.ClickhouseUtil;
 import com.atguigu.utils.MyKafkaUtil;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
+import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 /**
@@ -44,11 +48,22 @@ public class ProvinceStatsSqlApp {
                 " WITH (" + MyKafkaUtil.getKafkaDDL(orderWideTopic, groupId) + ")"
         );
 
+        //TODO 3.聚合计算
+        Table provinceStateTable = tableEnv.sqlQuery(
+                "select DATE_FORMAT(TUMBLE_START(rowtime, INTERTVAL '10' SECOND),'yyyy-MM-dd HH:mm:ss) stt," +
+                        "DATE_FORMAT(TUMBLE_END(rowtime, INTERTVAL '10' SECOND),'yyyy-MM-dd HH:mm:ss) edt," +
+                        "province_id,province_name,province_area_code," +
+                        "province_iso_code,province_3166_2_code," +
+                        "count(distinct order_id) order_count,sum(total_amount) order_amount," +
+                        "UNIX_TIMESTAMP()*1000 ts" +
+                        "from ORDER_WIDE group by TUMBLE(rowtime,Interval '10' second)," +
+                        "province_id,province_name,province_area_code,province_iso_code,province_3166_2_code");
+
         //TODO 4.转换为数据流
+        DataStream<ProvinceStats> provinceStatsDataStream = tableEnv.toAppendStream(provinceStateTable, ProvinceStats.class);
 
-
-
-
+        //TODO 5.写入Clickhouse
+        provinceStatsDataStream.addSink(ClickhouseUtil.getJdbcSink("insert into province_stats_2021 values(?,?,?,?,?,?,?,?,?,?)"));
 
         env.execute();
 

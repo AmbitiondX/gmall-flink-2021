@@ -28,7 +28,7 @@ import java.nio.charset.StandardCharsets;
 public class BaseDBApp {
     public static void main(String[] args) throws Exception {
         //1.获取执行环境
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment().setParallelism(1);
         /*env.setParallelism(1);
         // 设置状态后端
         env.setStateBackend(new FsStateBackend("hdfs://hadoop102:8020/gmall/dwd_log/ck"));
@@ -44,6 +44,8 @@ public class BaseDBApp {
 
         // 2.获取流
         DataStreamSource<String> kafkaDS = env.addSource(MyKafkaUtil.getFlinkKafkaConsumer(sourceTable, groupId));
+
+//        kafkaDS.print("kaf>>>>");
 
         // 3.转化为json对象,并过滤不是json格式的数据
         OutputTag<String> dirtyTag = new OutputTag<String>("dirtyData") {
@@ -84,6 +86,7 @@ public class BaseDBApp {
 
         DataStreamSource<String> MySqlDS = env.addSource(sourceFunction);
 
+//        MySqlDS.print("mysql>>>");
         // 6.设置状态
         MapStateDescriptor<String, TableProcess> mapStateDescriptor = new MapStateDescriptor<>("mapState", String.class, TableProcess.class);
         BroadcastStream<String> broadcastStream = MySqlDS.broadcast(mapStateDescriptor);
