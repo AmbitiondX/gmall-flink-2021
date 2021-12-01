@@ -2,6 +2,8 @@ package com.atguigu.app.dws;
 
 import com.alibaba.fastjson.JSONObject;
 import com.atguigu.bean.VisitorStats;
+import com.atguigu.utils.ClickhouseUtil;
+import com.atguigu.utils.DateTimeUtil;
 import com.atguigu.utils.MyKafkaUtil;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -17,6 +19,7 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
 import java.time.Duration;
+import java.util.Date;
 import java.util.Iterator;
 
 public class VisitorStatsApp {
@@ -106,7 +109,7 @@ public class VisitorStatsApp {
 
 //        unionDS.print("unionDS");
 
-        SingleOutputStreamOperator<VisitorStats> unionWithWMDS = unionDS.assignTimestampsAndWatermarks(WatermarkStrategy.<VisitorStats>forBoundedOutOfOrderness(Duration.ofSeconds(4))
+        SingleOutputStreamOperator<VisitorStats> unionWithWMDS = unionDS.assignTimestampsAndWatermarks(WatermarkStrategy.<VisitorStats>forBoundedOutOfOrderness(Duration.ofSeconds(13))
                 .withTimestampAssigner(new SerializableTimestampAssigner<VisitorStats>() {
                     @Override
                     public long extractTimestamp(VisitorStats element, long recordTimestamp) {
@@ -120,7 +123,7 @@ public class VisitorStatsApp {
             public Tuple4<String, String, String, String> getKey(VisitorStats value) throws Exception {
                 return Tuple4.of(value.getAr(), value.getCh(), value.getVc(), value.getIs_new());
             }
-        }).window(TumblingEventTimeWindows.of(Time.seconds(13)));
+        }).window(TumblingEventTimeWindows.of(Time.seconds(10)));
 
 
 
@@ -142,14 +145,16 @@ public class VisitorStatsApp {
             public void apply(Tuple4<String, String, String, String> stringStringStringStringTuple4, TimeWindow window, Iterable<VisitorStats> input, Collector<VisitorStats> out) throws Exception {
                 Iterator<VisitorStats> iterator = input.iterator();
                 VisitorStats visitorStats = iterator.next();
-                visitorStats.setStt(String.valueOf(window.getStart()));
-                visitorStats.setEdt(String.valueOf(window.getEnd()));
+                visitorStats.setStt(DateTimeUtil.toYMDhms(new Date(window.getStart())));
+                visitorStats.setEdt(DateTimeUtil.toYMDhms(new Date(window.getEnd())));
                 out.collect(visitorStats);
             }
         });
 
-        // 输出到kafka
+        // 输出到clickhouse
         reduceDS.print("reduceDS>>>>>");
+
+        reduceDS.addSink(ClickhouseUtil.getJdbcSink("insert into  visitor_stats_2021 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
 
 
 
