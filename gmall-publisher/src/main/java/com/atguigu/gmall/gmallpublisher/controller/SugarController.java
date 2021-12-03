@@ -24,6 +24,8 @@ public class SugarController {
         }
         BigDecimal gmv = productStatsService.getGMV(date);
         String json = "{   \"status\": 0,  \"data\":" + gmv + "}";
+
+        System.out.println("11111111111111111111");
         return  json;
     }
 

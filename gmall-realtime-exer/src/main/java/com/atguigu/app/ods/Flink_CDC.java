@@ -20,7 +20,7 @@ public class Flink_CDC {
                 .username("root")
                 .password("root")
                 .databaseList("gmall_rt")
-                .startupOptions(StartupOptions.initial())
+                .startupOptions(StartupOptions.latest())
                 .deserializer(new MyDeserializerFunc())
                 .build();
 

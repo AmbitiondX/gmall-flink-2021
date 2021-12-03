@@ -11,6 +11,7 @@ import java.util.Properties;
 public class MyKafkaUtil {
     private static Properties properties = new Properties();
     private static final String DEFAULT_TOPIC = "DWD_DEFAULT_TOPIC";
+    private static final String KAFKA_SERVER = "hadoop102:9092,hadoop103:9092,hadoop104:9092";
 
     static {
         properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "hadoop102:9092,hadoop103:9092,hadoop104:9092");
@@ -44,6 +45,17 @@ public class MyKafkaUtil {
                 properties,
                 FlinkKafkaProducer.Semantic.EXACTLY_ONCE
                 );
+    }
+
+    public static String getKafkaDDL(String topic, String groupId){
+        return "(\n" +
+                "  'connector' = 'kafka',\n" +
+                "  'topic' = '" + topic + "',\n" +
+                "  'properties.bootstrap.servers' = '"+ KAFKA_SERVER +"',\n" +
+                "  'properties.group.id' = '" + groupId +"',\n" +
+                "  'scan.startup.mode' = 'latest-offset',\n" +
+                "  'format' = 'json'\n" +
+                ")";
     }
 
 
